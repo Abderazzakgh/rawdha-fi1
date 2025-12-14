@@ -1,0 +1,16 @@
+project_id = "jxeyyxrhlyedahvfnmky"
+
+[functions.chat-bot]
+verify_jwt = false
+
+[functions.nusuk-login]
+verify_jwt = true
+
+[functions.nusuk-fetch-companions]
+verify_jwt = true
+
+[functions.nusuk-check-availability]
+verify_jwt = true
+
+[functions.nusuk-auto-book]
+verify_jwt = true

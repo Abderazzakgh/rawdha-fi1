@@ -1,0 +1,41 @@
+{
+    "manifest_version": 3,
+    "name": "Nusuk Automation Bridge",
+    "version": "1.0",
+    "description": "Bridge application for Nusuk Automation",
+    "permissions": [
+        "tabs",
+        "scripting",
+        "activeTab"
+    ],
+    "host_permissions": [
+        "*://*.nusuk.sa/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "http://localhost:*/*",
+                "http://127.0.0.1:*/*"
+            ],
+            "js": [
+                "proxy.js"
+            ],
+            "run_at": "document_start"
+        },
+        {
+            "matches": [
+                "*://*.nusuk.sa/*"
+            ],
+            "js": [
+                "nusuk-interceptor.js"
+            ],
+            "run_at": "document_end"
+        }
+    ],
+    "action": {
+        "default_title": "Nusuk Bridge Active"
+    }
+}

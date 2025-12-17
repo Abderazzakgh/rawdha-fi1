@@ -5,13 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Brain, 
-  Calendar, 
-  Clock, 
-  Users, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Brain,
+  Calendar,
+  Clock,
+  Users,
+  CheckCircle,
+  XCircle,
   AlertTriangle,
   TrendingUp,
   Timer,
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { format, addDays, isWithinInterval } from "date-fns";
 import { ar } from "date-fns/locale";
+import { ExtensionBridge } from "@/lib/extension-bridge";
 
 interface TimeSlot {
   id: string;
@@ -48,12 +49,12 @@ interface SmartBookingLogicProps {
   isActive: boolean;
 }
 
-export const SmartBookingLogic = ({ 
-  entryDate, 
-  exitDate, 
-  selectedPeople, 
-  retryDelay, 
-  isActive 
+export const SmartBookingLogic = ({
+  entryDate,
+  exitDate,
+  selectedPeople,
+  retryDelay,
+  isActive
 }: SmartBookingLogicProps) => {
   const { toast } = useToast();
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
@@ -108,30 +109,13 @@ export const SmartBookingLogic = ({
     setTimeSlots(slots);
   }, [entryDate, exitDate]);
 
-  // منطق المراقبة الذكي
+  // منطق المراقبة الذكي - تم نقله للإضافة
+  // Extension deals with the actual loop now.
+  // We can listen for updates here if we implement a listener, 
+  // currently we rely on the bridge doing the work.
   useEffect(() => {
-    if (!isActive || !isMonitoring) return;
-
-    const monitoringInterval = setInterval(() => {
-      // محاكاة تحديث حالة الفترات
-      setTimeSlots(prev => prev.map(slot => ({
-        ...slot,
-        available: Math.random() > 0.97 // فرصة أكبر قليلاً لإظهار فترات متاحة
-      })));
-
-      // البحث عن فترات متاحة والمحاولة
-      const availableSlots = timeSlots.filter(slot => 
-        slot.available && 
-        isWithinInterval(slot.date, { start: entryDate, end: exitDate })
-      );
-
-      if (availableSlots.length > 0 && (!nextAttemptTime || new Date() >= nextAttemptTime)) {
-        attemptBooking(availableSlots[0]);
-      }
-    }, 1000);
-
-    return () => clearInterval(monitoringInterval);
-  }, [isActive, isMonitoring, timeSlots, entryDate, exitDate, nextAttemptTime]);
+    // Placeholder for future state syncing
+  }, [isActive, isMonitoring]);
 
   // محاولة الحجز مع منطق الأعداد الذكي
   const attemptBooking = async (slot: TimeSlot) => {
@@ -140,7 +124,7 @@ export const SmartBookingLogic = ({
 
     // محاكاة محاولة الحجز
     const success = Math.random() > 0.7; // 30% معدل نجاح
-    
+
     const attempt: BookingAttempt = {
       id: attemptId,
       timestamp: new Date(),
@@ -154,7 +138,7 @@ export const SmartBookingLogic = ({
     if (success) {
       setSuccessfulBookings(prev => prev + currentAttemptGroup);
       setCurrentAttemptGroup(Math.max(0, selectedPeople - (successfulBookings + currentAttemptGroup)));
-      
+
       toast({
         title: "نجح الحجز! 🎉",
         description: `تم حجز ${currentAttemptGroup} أشخاص للفترة ${slot.time} في ${format(slot.date, 'dd/MM/yyyy', { locale: ar })}`,
@@ -170,24 +154,40 @@ export const SmartBookingLogic = ({
         return;
       }
     } else {
-      // منطق تقليل العدد
-      if (currentAttemptGroup > 1) {
-        const newGroupSize = Math.max(1, Math.floor(currentAttemptGroup / 2));
-        setCurrentAttemptGroup(newGroupSize);
-        
-        toast({
-          title: "تعديل عدد الأشخاص",
-          description: `سيتم المحاولة بـ ${newGroupSize} أشخاص في المرة القادمة`,
-        });
+      // منطق تقليل العدد (Split Booking Logic)
+      // التسلسل: 10 -> 5 -> 2 -> 1
+      let newGroupSize = 1;
+      if (currentAttemptGroup > 5) {
+        newGroupSize = 5;
+      } else if (currentAttemptGroup > 2) {
+        newGroupSize = 2;
+      } else if (currentAttemptGroup > 1) {
+        newGroupSize = 1;
+      } else {
+        // انتهت محاولات التقليل لهذه الفترة
+        return;
       }
+
+      setCurrentAttemptGroup(newGroupSize);
+
+      toast({
+        title: "تعديل عدد الأشخاص (Split Booking)",
+        description: `فشل الحجز لـ ${currentAttemptGroup}. سيتم المحاولة بـ ${newGroupSize} أشخاص فوراً...`,
+        variant: "default"
+      });
+
+      // محاولة فورية بالعدد الجديد
+      // نقوم بتسريع المحاولة التالية
+      setNextAttemptTime(new Date(Date.now() + 500)); // 0.5 ثانية فقط
+      return; // عدم تعيين تأخير طويل
     }
 
     // تحديد موعد المحاولة التالية
     setNextAttemptTime(new Date(Date.now() + retryDelay * 1000));
-    
+
     // تحديث إحصائيات الفترة
-    setTimeSlots(prev => prev.map(s => 
-      s.id === slot.id 
+    setTimeSlots(prev => prev.map(s =>
+      s.id === slot.id
         ? { ...s, attemptCount: s.attemptCount + 1, available: false }
         : s
     ));
@@ -199,16 +199,105 @@ export const SmartBookingLogic = ({
     setBookingAttempts([]);
     setSuccessfulBookings(0);
     setTotalAttempts(0);
-    
-    toast({
-      title: "بدأت المراقبة الذكية",
-      description: `مراقبة الفترات المتاحة من ${format(entryDate, 'dd/MM/yyyy', { locale: ar })} إلى ${format(exitDate, 'dd/MM/yyyy', { locale: ar })}`,
+
+    // --- NEW EXTENSION BRIDGE LOGIC ---
+    // Start listening for real updates
+    ExtensionBridge.startScanning({ retryDelay });
+
+    // Subscribe to status updates
+    const unsubscribe = ExtensionBridge.onStatusUpdate((status) => {
+      // Handle different status types
+      if (status.type === 'STATUS_FOUND_SLOT') {
+        // Play Success Sound
+        playAudio('/sounds/success.mp3');
+        toast({
+          title: "🎉 تم العثور على موعد!",
+          description: status.message,
+          className: "bg-green-600 text-white"
+        });
+      } else if (status.type === 'STATUS_OTP_NEEDED') {
+        // Play Alert Sound
+        playAudio('/sounds/alert.mp3');
+        toast({
+          title: "🔐 مطلوب رمز التحقق (OTP)",
+          description: "الرجاء إدخال الرمز المرسل لجوالك في صفحة المتصفح",
+          className: "bg-amber-500 text-black font-bold border-2 border-black"
+        });
+      } else if (status.type === 'STATUS_LOGIN_SUCCESS') {
+        // Play Success
+        playAudio('/sounds/success.mp3');
+        toast({
+          title: "✅ تم تسجيل الدخول بنجاح",
+          description: "جاري الانتقال لصفحة التصاريح تلقائياً...",
+          className: "bg-blue-600 text-white"
+        });
+      } else if (status.type === 'ERROR') {
+        // Play Error Sound
+        playAudio('/sounds/error.mp3');
+        toast({
+          title: "تنبيه",
+          description: status.message,
+          variant: "destructive"
+        });
+      } else {
+        // General status update (Scanning...)
+        toast({
+          title: "الحالة",
+          description: status.message,
+          duration: 2000
+        });
+      }
     });
+
+    // cleanup listener when stop is clicked or unmount (handled roughly here)
+    // ideally we store 'unsubscribe' in a ref or state
+
+    if (ExtensionBridge.isAvailable) {
+      toast({
+        title: "تم تفعيل المراقبة الحقيقية",
+        description: "تقوم الإضافة الآن بالبحث وحجز المواعيد تلقائياً",
+      });
+    }
+    // ----------------------------------
+  };
+
+  const playAudio = (path: string) => {
+    // Placeholder: In a real app, ensure these files exist in public/sounds/
+    // Using a generic online beep for demo if local not found, or just console
+    console.log('Playing audio:', path);
+    // const audio = new Audio(path);
+    // audio.play().catch(e => console.error('Audio play failed', e));
+
+    // For this demo, we can try a BEEP
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    if (path.includes('success')) {
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
+    } else {
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    }
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.5);
   };
 
   const stopMonitoring = () => {
     setIsMonitoring(false);
     setNextAttemptTime(null);
+
+    // --- NEW EXTENSION BRIDGE LOGIC ---
+    ExtensionBridge.stopScanning();
+    // ----------------------------------
+
     toast({
       title: "توقفت المراقبة",
       description: "تم إيقاف مراقبة الحجز",
@@ -238,19 +327,19 @@ export const SmartBookingLogic = ({
               <p className="text-2xl font-bold">{selectedPeople}</p>
               <p className="text-sm text-muted-foreground">العدد المطلوب</p>
             </Card>
-            
+
             <Card className="p-4 text-center">
               <CheckCircle className="h-8 w-8 mx-auto mb-2 text-success" />
               <p className="text-2xl font-bold text-success">{successfulBookings}</p>
               <p className="text-sm text-muted-foreground">تم حجزهم</p>
             </Card>
-            
+
             <Card className="p-4 text-center">
               <Users className="h-8 w-8 mx-auto mb-2 text-warning" />
               <p className="text-2xl font-bold text-warning">{remainingPeople}</p>
               <p className="text-sm text-muted-foreground">متبقي</p>
             </Card>
-            
+
             <Card className="p-4 text-center">
               <TrendingUp className="h-8 w-8 mx-auto mb-2 text-info" />
               <p className="text-2xl font-bold text-info">{totalAttempts}</p>
@@ -275,7 +364,7 @@ export const SmartBookingLogic = ({
               <Zap className="h-5 w-5" />
               الحالة الحالية
             </h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <span className="text-sm text-muted-foreground">حالة المراقبة:</span>
@@ -283,18 +372,18 @@ export const SmartBookingLogic = ({
                   {isMonitoring ? 'نشطة' : 'متوقفة'}
                 </Badge>
               </div>
-              
+
               <div className="space-y-2">
                 <span className="text-sm text-muted-foreground">المجموعة الحالية:</span>
                 <Badge variant="outline" className="block text-center">
                   {currentAttemptGroup} أشخاص
                 </Badge>
               </div>
-              
+
               <div className="space-y-2">
                 <span className="text-sm text-muted-foreground">المحاولة التالية:</span>
                 <Badge variant="outline" className="block text-center text-xs">
-                  {nextAttemptTime 
+                  {nextAttemptTime
                     ? nextAttemptTime.toLocaleTimeString('ar-SA')
                     : 'فوري'
                   }
@@ -311,7 +400,7 @@ export const SmartBookingLogic = ({
               <Calendar className="h-5 w-5" />
               الفترات المراقبة ({timeSlots.filter(s => isWithinInterval(s.date, { start: entryDate, end: exitDate })).length})
             </h3>
-            
+
             <div className="max-h-64 overflow-y-auto space-y-2">
               {timeSlots
                 .filter(slot => isWithinInterval(slot.date, { start: entryDate, end: exitDate }))
@@ -319,11 +408,10 @@ export const SmartBookingLogic = ({
                 .map((slot) => (
                   <div
                     key={slot.id}
-                    className={`p-3 border rounded-lg flex items-center justify-between transition-all ${
-                      slot.available
-                        ? 'border-success bg-success/10 animate-glow'
-                        : 'border-muted bg-background'
-                    }`}
+                    className={`p-3 border rounded-lg flex items-center justify-between transition-all ${slot.available
+                      ? 'border-success bg-success/10 animate-glow'
+                      : 'border-muted bg-background'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       {slot.available ? (
@@ -361,16 +449,15 @@ export const SmartBookingLogic = ({
                 <Timer className="h-5 w-5" />
                 آخر المحاولات
               </h3>
-              
+
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {bookingAttempts.map((attempt) => (
                   <div
                     key={attempt.id}
-                    className={`p-3 border rounded-lg flex items-center justify-between ${
-                      attempt.success
-                        ? 'border-success bg-success/10'
-                        : 'border-destructive bg-destructive/10'
-                    }`}
+                    className={`p-3 border rounded-lg flex items-center justify-between ${attempt.success
+                      ? 'border-success bg-success/10'
+                      : 'border-destructive bg-destructive/10'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       {attempt.success ? (
@@ -422,17 +509,106 @@ export const SmartBookingLogic = ({
                 </Button>
               </div>
             ) : (
-              <div className="flex gap-3">
-                <Button
-                  onClick={startMonitoring}
-                  disabled={remainingPeople === 0}
-                  className="flex-1 bg-gradient-primary hover:bg-primary/90 shadow-elegant"
-                  size="lg"
-                >
-                  <Play className="h-4 w-4 ml-2" />
-                  بدء المراقبة الذكية
-                </Button>
-              </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Button
+                    onClick={startMonitoring}
+                    disabled={remainingPeople === 0}
+                    className="bg-gradient-primary hover:bg-primary/90 shadow-elegant"
+                    size="lg"
+                  >
+                    <Play className="h-4 w-4 ml-2" />
+                    بدء المراقبة الذكية
+                  </Button>
+
+                  <Button
+                    onClick={() => {
+                      // Test Login Trigger
+                      // Uses hardcoded dummy data if props are empty, just to test the mechanism
+                      const success = ExtensionBridge.login({
+                        username: "TEST_USER",
+                        password_encrypted: "TEST_PASS"
+                      });
+
+                      if (success) {
+                        toast({
+                          title: "بدء اختبار الدخول",
+                          description: "سيتم فتح صفحة الدخول وتعبئة بيانات تجريبية (TEST_USER)"
+                        });
+                      } else {
+                        toast({
+                          title: "خطأ",
+                          description: "الإضافة غير مثبتة",
+                          variant: "destructive"
+                        });
+                      }
+                    }}
+                    variant="outline"
+                    size="lg"
+                    className="border-primary/20 hover:bg-primary/5"
+                  >
+                    <Users className="h-4 w-4 ml-2" />
+                    تجربة الدخول الآلي
+                  </Button>
+
+                  <Button
+                    onClick={() => {
+                      // Test Audio Trigger
+                      playAudio('/sounds/success.mp3');
+                      toast({
+                        title: "🔊 تجربة الصوت",
+                        description: "يجب أن تسمع نغمة النجاح الآن",
+                        className: "bg-green-600 text-white"
+                      });
+                    }}
+                    variant="outline"
+                    size="lg"
+                    className="border-success/20 hover:bg-success/5"
+                  >
+                    <Play className="h-4 w-4 ml-2 text-success" />
+                    تجربة الصوت
+                  </Button>
+                </div>
+
+                {/* Advanced Simulations for Features 2 & 3 */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <Button
+                    onClick={() => {
+                      // Simulate OTP Event
+                      playAudio('/sounds/alert.mp3');
+                      toast({
+                        title: "🔐 كشف الـ OTP (محاكاة)",
+                        description: "هكذا سيظهر التنبيه عند طلب رمز التحقق",
+                        className: "bg-amber-500 text-black font-bold border-2 border-black"
+                      });
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-amber-600 border border-amber-200 hover:bg-amber-50"
+                  >
+                    <AlertTriangle className="h-4 w-4 ml-2" />
+                    تجربة تنبيه OTP
+                  </Button>
+
+                  <Button
+                    onClick={() => {
+                      // Simulate Success/Redirect Event
+                      playAudio('/sounds/success.mp3');
+                      toast({
+                        title: "✅ الانتقال التلقائي (محاكاة)",
+                        description: "سيتم نقلك لصفحة التصاريح فور نجاح الدخول",
+                        className: "bg-blue-600 text-white"
+                      });
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-blue-600 border border-blue-200 hover:bg-blue-50"
+                  >
+                    <Zap className="h-4 w-4 ml-2" />
+                    تجربة الانتقال التلقائي
+                  </Button>
+                </div>
+              </>
             )}
           </div>
 
@@ -444,7 +620,7 @@ export const SmartBookingLogic = ({
                 <h4 className="font-semibold text-info mb-2">آلية الحجز الذكي</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
                   <li>• مراقبة مستمرة لجميع الفترات في النطاق المحدد (24/7)</li>
-                  <li>• عند فشل الحجز لعدد كبير، يتم التقليل تدريجياً (10→5→2→1)</li>
+                  <li>• عند فشل الحجز لعدد كبير، يتم التقليل: (10 ← 5 ← 2 ← 1)</li>
                   <li>• إعادة المحاولة كل {retryDelay} ثانية حسب الإعدادات</li>
                   <li>• التوقف التلقائي عند اكتمال حجز جميع الأشخاص</li>
                   <li>• حفظ سجل مفصل لجميع المحاولات والنتائج</li>

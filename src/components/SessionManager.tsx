@@ -5,13 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Globe, 
-  Key, 
-  Shield, 
-  CheckCircle, 
-  XCircle, 
-  RefreshCw, 
+import {
+  Globe,
+  Key,
+  Shield,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
   AlertTriangle,
   Eye,
   Play,
@@ -40,7 +40,7 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
     lastActivity: null,
     loginAttempts: 0
   });
-  
+
   const [loginProgress, setLoginProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -52,7 +52,7 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
   const simulateLogin = async () => {
     setIsLoggingIn(true);
     setLoginProgress(0);
-    
+
     const steps = [
       { step: 'فتح المتصفح...', progress: 20 },
       { step: 'الانتقال لموقع نسك أعمال...', progress: 40 },
@@ -66,54 +66,22 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
 
+    // انتهاء المحاكاة وبدء الانتظار اليدوي
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     // انتظار OTP
     setAwaitingOtp(true);
-    setCurrentStep('يرجى إدخال كود OTP المرسل لهاتفك');
-    
-    setTimeout(() => {
-      if (!awaitingOtp) return;
-      
-      // محاكاة نجاح تسجيل الدخول
-      setLoginProgress(100);
-      setCurrentStep('تم تسجيل الدخول بنجاح');
-      setSessionStatus({
-        ...sessionStatus,
-        isLoggedIn: true,
-        sessionValid: true,
-        lastActivity: new Date(),
-        loginAttempts: sessionStatus.loginAttempts + 1
-      });
-      
-      setIsLoggingIn(false);
-      setAwaitingOtp(false);
-      
-      toast({
-        title: "نجح تسجيل الدخول",
-        description: "تم تسجيل الدخول بنجاح وسيتم إيقاف OTP",
-      });
-
-      // محاكاة إيقاف OTP
-      setTimeout(() => {
-        setSessionStatus(prev => ({
-          ...prev,
-          otpDisabled: true
-        }));
-        toast({
-          title: "تم إيقاف OTP",
-          description: "لن تحتاج لكود OTP في المرات القادمة",
-        });
-      }, 2000);
-    }, 5000);
+    setCurrentStep('يرجى إدخال كود OTP المرسل لهاتفك يدوياً');
   };
 
-  // بدء تسجيل الدخول التلقائي
+  // بدء تسجيل الدخول التلقائي (معطل حالياً)
   useEffect(() => {
-    if (isActive && username && !autoStarted && !sessionStatus.isLoggedIn) {
+    /* if (isActive && username && !autoStarted && !sessionStatus.isLoggedIn) {
       setAutoStarted(true);
       setTimeout(() => {
-        simulateLogin();
+        // simulateLogin();
       }, 500);
-    }
+    } */
   }, [isActive, username, autoStarted, sessionStatus.isLoggedIn]);
 
   // محاكاة فحص حالة الجلسة
@@ -121,18 +89,8 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
     if (!isActive) return;
 
     const interval = setInterval(() => {
-      // محاكاة انتهاء الجلسة أحياناً
-      if (Math.random() < 0.1 && sessionStatus.isLoggedIn) {
-        setSessionStatus(prev => ({
-          ...prev,
-          sessionValid: false
-        }));
-        toast({
-          title: "انتهت صلاحية الجلسة",
-          description: "سيتم إعادة تسجيل الدخول تلقائياً",
-          variant: "destructive",
-        });
-      } else if (sessionStatus.isLoggedIn) {
+      // تحديث وقت آخر نشاط فقط دون محاكاة الخروج القسري في الوضع اليدوي لتجنب الإزعاج
+      if (sessionStatus.isLoggedIn) {
         setSessionStatus(prev => ({
           ...prev,
           lastActivity: new Date()
@@ -232,7 +190,7 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
               <Eye className="h-5 w-5" />
               تفاصيل الجلسة
             </h3>
-            
+
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">المستخدم:</span>
@@ -245,7 +203,7 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
               <div className="col-span-2">
                 <span className="text-muted-foreground">آخر نشاط:</span>
                 <span className="font-medium mr-2">
-                  {sessionStatus.lastActivity 
+                  {sessionStatus.lastActivity
                     ? sessionStatus.lastActivity.toLocaleTimeString('ar-SA')
                     : 'لا يوجد'
                   }
@@ -269,7 +227,7 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
                 <Progress value={loginProgress} className="w-full h-3 mb-2" />
                 <p className="text-sm text-muted-foreground text-center">{currentStep}</p>
               </div>
-              
+
               {awaitingOtp && (
                 <Card className="p-6 border-warning bg-warning/10 shadow-glow animate-fade-in">
                   <div className="space-y-4">
@@ -289,7 +247,7 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
                         onChange={(e) => setOtpCode(e.target.value)}
                         className="flex-1 px-4 py-3 border-2 border-warning/30 rounded-lg text-center text-lg font-mono bg-background"
                       />
-                      <Button 
+                      <Button
                         onClick={handleOtpSubmit}
                         disabled={!otpCode || otpCode.length !== 6}
                         className="bg-gradient-primary"
@@ -315,7 +273,7 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
               <Play className="h-4 w-4 ml-2" />
               بدء تسجيل الدخول
             </Button>
-            
+
             <Button
               onClick={forceRelogin}
               disabled={isLoggingIn}
@@ -334,7 +292,7 @@ export const SessionManager = ({ username, isActive }: SessionManagerProps) => {
               <div>
                 <h4 className="font-semibold text-info mb-1">آلية إعادة التسجيل التلقائي</h4>
                 <p className="text-sm text-muted-foreground">
-                  البرنامج يراقب حالة الجلسة باستمرار. في حالة انتهاء الصلاحية أو تسجيل الخروج التلقائي، 
+                  البرنامج يراقب حالة الجلسة باستمرار. في حالة انتهاء الصلاحية أو تسجيل الخروج التلقائي،
                   سيقوم بإعادة تسجيل الدخول تلقائياً وإكمال مهمة المراقبة.
                 </p>
               </div>

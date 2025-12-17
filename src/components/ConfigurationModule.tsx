@@ -24,6 +24,9 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { api } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
+import { openNusukLogin } from "@/utils/browserHelpers";
+import { ExternalLink } from "lucide-react";
+import { ExtensionBridge } from "@/lib/extension-bridge";
 
 interface ConfigData {
   username: string;
@@ -210,6 +213,36 @@ export const ConfigurationModule = ({ onConfigSave, initialConfig }: Configurati
                 </div>
               </div>
             </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                const success = ExtensionBridge.login({
+                  username: config.username,
+                  password_encrypted: config.password
+                });
+
+                if (success) {
+                  toast({
+                    title: "جاري الاتصال بالإضافة...",
+                    description: "سيتم فتح نسك وتعبئة البيانات تلقائياً"
+                  });
+                } else {
+                  // Fallback if extension not installed
+                  openNusukLogin();
+                  toast({
+                    title: "الإضافة غير مثبتة",
+                    description: "تم فتح الرابط يدوياً. قم بتثبيت الإضافة للأتمتة الكاملة.",
+                    variant: "destructive"
+                  });
+                }
+              }}
+              className="w-full mt-2 border-primary/20 hover:bg-primary/5"
+            >
+              <ExternalLink className="h-4 w-4 ml-2" />
+              تسجيل الدخول تلقائياً (عبر الإضافة)
+            </Button>
           </div>
 
           <Separator />

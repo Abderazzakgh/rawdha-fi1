@@ -39,8 +39,11 @@ import {
   TestTube2,
   Settings2,
   FileText,
-  Shield
+  Shield,
+  LogIn,
+  Link
 } from "lucide-react";
+import { openNusukLogin, openNusukPage, NUSUK_URLS } from "@/utils/browserHelpers";
 
 interface ConfigData {
   username: string;
@@ -242,6 +245,42 @@ export const MainDashboard = () => {
     description: 'مراقبة وتحليل النشاط',
     completed: false
   }];
+
+  const QuickLinks = () => (
+    <Card className="mb-6 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+      <CardContent className="p-4 flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-full">
+            <Globe className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-primary">روابط سريعة لمنصة نسك</h3>
+            <p className="text-xs text-muted-foreground">الوصول المباشر للصفحات في نافذة جديدة</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openNusukLogin}
+            className="gap-2 hover:bg-primary hover:text-white transition-colors"
+          >
+            <LogIn className="h-4 w-4" />
+            تسجيل الدخول
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openNusukPage(NUSUK_URLS.PERMITS)}
+            className="gap-2 hover:bg-primary hover:text-white transition-colors"
+          >
+            <FileText className="h-4 w-4" />
+            التصاريح
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   // عرض شاشة البداية
   if (showSplash) {

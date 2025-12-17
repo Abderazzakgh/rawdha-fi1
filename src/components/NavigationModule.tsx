@@ -14,9 +14,12 @@ import {
   ArrowRight,
   Filter,
   UserCheck,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from "lucide-react";
 import { api, NusukCompanion } from "@/lib/api";
+import { openNusukLogin } from "@/utils/browserHelpers";
+import { ExtensionBridge } from "@/lib/extension-bridge";
 
 interface NavigationStep {
   id: string;
@@ -159,8 +162,25 @@ export const NavigationModule = ({ groupNumber, permitType, isActive, onComplete
       setCurrentStepIndex(i);
       setProgress(((i + 1) / navigationSteps.length) * 100);
 
-      // محاكاة وقت التنفيذ لكل خطوة
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // --- NEW EXTENSION BRIDGE LOGIC ---
+      const stepId = navigationSteps[i].id;
+
+      // Attempt to perform action via extension
+      // Using slight delays to ensure page load - in a perfect world we'd use callbacks
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Base wait for page load
+
+      if (stepId === 'permits') {
+        ExtensionBridge.navigate('CLICK_PERMITS');
+      } else if (stepId === 'add_permit') {
+        ExtensionBridge.navigate('CLICK_ADD_REQUEST');
+      } else if (stepId === 'permit_type') {
+        if (permitType === 'men') {
+          ExtensionBridge.navigate('CLICK_MEN_PERMIT');
+        } else {
+          ExtensionBridge.navigate('CLICK_WOMEN_PERMIT');
+        }
+      }
+      // ----------------------------------
 
       // إتمام الخطوة الحالية
       setNavigationSteps(prev => prev.map((step, index) => ({
@@ -395,6 +415,15 @@ export const NavigationModule = ({ groupNumber, permitType, isActive, onComplete
                 <p className="text-success font-semibold">تم تحديد {selectedCount} أشخاص - انقر للمتابعة</p>
               </div>
             )}
+
+            <Button
+              onClick={openNusukLogin}
+              variant="outline"
+              className="w-full border-primary/20 hover:bg-primary/5 text-primary"
+            >
+              <ExternalLink className="h-4 w-4 ml-2" />
+              فتح منصة نسك (masar.nusuk.sa)
+            </Button>
           </div>
 
           {/* معلومات هامة */}
